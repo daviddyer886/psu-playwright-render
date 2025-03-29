@@ -1,51 +1,40 @@
-import asyncio
 import json
+import requests
 from flask import Flask, jsonify
-from playwright.async_api import async_playwright
 
 app = Flask(__name__)
 
 @app.route("/jobs.json")
-def jobs_endpoint():
-    return asyncio.run(fetch_jobs())
-
-async def fetch_jobs():
+def jobs_api():
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            await page.goto("https://www.calcareers.ca.gov/CalHrPublic/Jobs/JobPostingList.aspx", wait_until="load")
-            await page.wait_for_timeout(5000)
-
-            html = await page.content()
-
-            try:
-                await page.wait_for_selector("table#SearchResultsGrid", timeout=20000)
-            except:
-                return jsonify({
-                    "error": "Job table not found. Check CalCareers site or selector.",
-                    "html_preview": html[:1000]
-                })
-
-            jobs = await page.evaluate("""
-            () => {
-                const rows = Array.from(document.querySelectorAll("tr.DataRow"));
-                return rows.map(row => {
-                    const cells = row.querySelectorAll("td");
-                    const link = cells[0]?.querySelector("a");
-                    return {
-                        title: link?.innerText.trim(),
-                        department: cells[1]?.innerText.trim(),
-                        location: cells[2]?.innerText.trim(),
-                        salary: cells[3]?.innerText.trim(),
-                        url: "https://www.calcareers.ca.gov" + link?.getAttribute("href")
-                    };
-                }).filter(job => job.title);
+        response = requests.post(
+            "https://www.calcareers.ca.gov/CalHrPublic/Search/JobSearchResults",
+            headers={"Content-Type": "application/json"},
+            json={
+                "Keywords": "",
+                "Page": 1,
+                "PageSize": 10,
+                "SortField": "PostingDate",
+                "SortDescending": True
             }
-            """)
+        )
 
-            await browser.close()
-            return jsonify(jobs)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to fetch jobs", "status": response.status_code})
+
+        data = response.json()
+        jobs = []
+
+        for job in data.get("Results", []):
+            jobs.append({
+                "title": job.get("JobTitle"),
+                "department": job.get("DepartmentName"),
+                "location": job.get("JobLocation"),
+                "salary": job.get("SalaryRange"),
+                "url": f"https://www.calcareers.ca.gov/CalHrPublic/Jobs/JobPosting.aspx?JobControlId={job.get('JobControlId')}"
+            })
+
+        return jsonify(jobs)
 
     except Exception as e:
         return jsonify({"error": str(e)})
