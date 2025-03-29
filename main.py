@@ -18,15 +18,14 @@ async def fetch_jobs():
             await page.wait_for_timeout(5000)
 
             html = await page.content()
-            print("\n=== PAGE CONTENT PREVIEW (first 500 chars) ===\n")
-            print(html[:500])
-            print("\n=============================================\n")
 
             try:
                 await page.wait_for_selector("table#SearchResultsGrid", timeout=20000)
             except:
-                print("Selector 'table#SearchResultsGrid' not found.")
-                return jsonify({"error": "Job table not found. Check CalCareers site or selector."})
+                return jsonify({
+                    "error": "Job table not found. Check CalCareers site or selector.",
+                    "html_preview": html[:1000]
+                })
 
             jobs = await page.evaluate("""
             () => {
@@ -49,7 +48,6 @@ async def fetch_jobs():
             return jsonify(jobs)
 
     except Exception as e:
-        print(f"Exception: {e}")
         return jsonify({"error": str(e)})
 
 if __name__ == "__main__":
