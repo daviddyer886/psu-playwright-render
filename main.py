@@ -7,24 +7,34 @@ app = Flask(__name__)
 @app.route("/jobs.json")
 def jobs_api():
     try:
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+
+        payload = {
+            "Keywords": "",
+            "Page": 1,
+            "PageSize": 10,
+            "SortField": "PostingDate",
+            "SortDescending": True
+        }
+
         response = requests.post(
             "https://www.calcareers.ca.gov/CalHrPublic/Search/JobSearchResults",
-            headers={"Content-Type": "application/json"},
-            json={
-                "Keywords": "",
-                "Page": 1,
-                "PageSize": 10,
-                "SortField": "PostingDate",
-                "SortDescending": True
-            }
+            headers=headers,
+            json=payload
         )
 
-        if response.status_code != 200:
-            return jsonify({"error": "Failed to fetch jobs", "status": response.status_code})
+        try:
+            data = response.json()
+        except Exception as e:
+            return jsonify({
+                "error": str(e),
+                "raw_response": response.text[:1000]
+            })
 
-        data = response.json()
         jobs = []
-
         for job in data.get("Results", []):
             jobs.append({
                 "title": job.get("JobTitle"),
